@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+import time
 
 from app.config import settings
 from app.database import database
@@ -96,6 +97,40 @@ collection_configs = [
 for collection_name, tag in collection_configs:
     router = create_collection_router(collection_name, tag)
     app.include_router(router)
+
+
+for collection_name, tag in collection_configs:
+    router = create_collection_router(collection_name, tag)
+    app.include_router(router)
+
+
+# ---- Auth Info Routes ----
+@app.get("/auth/login")
+async def auth_login_info():
+    """Information about login endpoint when accessed via GET."""
+    return {
+        "data": {
+            "method": "POST",
+            "endpoint": "/api/auth/login",
+            "body": {
+                "username": "string (required)",
+                "password": "string (required)"
+            },
+            "response": {
+                "token": "JWT token",
+                "user": "user object",
+                "expiresAt": "expiration timestamp"
+            },
+            "example": {
+                "username": "admin",
+                "password": "password123"
+            }
+        },
+        "status": 200,
+        "message": "Login requires POST method to /api/auth/login",
+        "timestamp": int(time.time() * 1000),
+        "requestId": f"req_{int(time.time())}",
+    }
 
 
 # ---- Health Check ----
