@@ -79,6 +79,30 @@ async def login(credentials: UserLogin):
     }
 
 
+@router.get("/login")
+async def login_info():
+    """Information about login endpoint."""
+    return {
+        "data": {
+            "method": "POST",
+            "endpoint": "/api/auth/login",
+            "body": {
+                "username": "string",
+                "password": "string"
+            },
+            "response": {
+                "token": "JWT token",
+                "user": "user object",
+                "expiresAt": "timestamp"
+            }
+        },
+        "status": 200,
+        "message": "Use POST method to login",
+        "timestamp": int(time.time() * 1000),
+        "requestId": f"req_{int(time.time())}",
+    }
+
+
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
     """Logout the current user."""
