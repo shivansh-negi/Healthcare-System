@@ -132,18 +132,52 @@ class ApiService {
   // ========= Auth Endpoints =========
 
   async login(username: string, password: string): Promise<ApiResponse<{ token: string; user: any; expiresAt: number }>> {
-    const response = await this.request<{ token: string; user: any; expiresAt: number }>(
-      'POST',
-      '/api/auth/login',
-      { username, password }
-    );
+    // ── Mock credentials table (works fully offline) ───────────────────────
+    const MOCK_USERS: Record<string, { pass: string; user: any }> = {
+      admin:   { pass: 'admin123',   user: { id: 'A001', username: 'admin',   name: 'Dr. Admin Singh',    role: 'Admin',   avatar: '🛡️',  department: 'Administration' } },
+      doctor:  { pass: 'doctor123',  user: { id: 'D001', username: 'doctor',  name: 'Dr. Rajesh Kumar',   role: 'Doctor',  avatar: '👨‍⚕️', department: 'Cardiology',    specialization: 'Cardiologist' } },
+      staff:   { pass: 'staff123',   user: { id: 'S001', username: 'staff',   name: 'Priya Staff',        role: 'Staff',   avatar: '👩‍💼', department: 'Reception' } },
+      patient: { pass: 'patient123', user: { id: 'P001', username: 'patient', name: 'Rahul Sharma',       role: 'Patient', avatar: '👤' } },
+    };
 
-    // Store token locally
-    const { token, expiresAt } = response.data;
-    localStorage.setItem('hp_auth_token', token);
-    localStorage.setItem('hp_token_expires', expiresAt.toString());
+    const mock = MOCK_USERS[username.toLowerCase()];
 
-    return response;
+    // ── Try real backend first (for ALL roles) ─────────────────────────────
+    try {
+      const response = await this.request<{ token: string; user: any; expiresAt: number }>(
+        'POST', '/api/auth/login', { username, password }
+      );
+      const { token, expiresAt } = response.data;
+      localStorage.setItem('hp_auth_token', token);
+      localStorage.setItem('hp_token_expires', expiresAt.toString());
+      localStorage.removeItem('hp_mock_user');
+      return response;
+    } catch (err: any) {
+      if (err?.code !== 'NETWORK_ERROR' && err?.status !== 0) {
+        throw err;
+      }
+      console.warn('[Auth] Backend unreachable, using mock credentials');
+    }
+
+    // ── Mock login (offline fallback or Patient) ───────────────────────────
+    if (mock && password === mock.pass) {
+      const expiresAt = Date.now() + 8 * 60 * 60 * 1000; // 8 hours
+      const mockToken = btoa(JSON.stringify({ id: mock.user.id, role: mock.user.role, exp: expiresAt }));
+      localStorage.setItem('hp_auth_token', mockToken);
+      localStorage.setItem('hp_token_expires', expiresAt.toString());
+      localStorage.setItem('hp_mock_user', JSON.stringify(mock.user));
+      return {
+        data: { token: mockToken, user: mock.user, expiresAt },
+        status: 200, message: 'Login successful (offline mode)',
+        timestamp: Date.now(), requestId: `req_${Date.now()}`,
+      };
+    }
+
+    // ── Bad credentials ────────────────────────────────────────────────────
+    throw {
+      status: 401, message: 'Invalid username or password',
+      code: 'AUTH_FAILED', timestamp: Date.now(),
+    };
   }
 
   async logout(): Promise<ApiResponse<{ success: boolean }>> {
@@ -153,45 +187,35 @@ class ApiService {
     } finally {
       localStorage.removeItem('hp_auth_token');
       localStorage.removeItem('hp_token_expires');
+      localStorage.removeItem('hp_mock_user');
     }
   }
 
   async validateToken(): Promise<ApiResponse<{ valid: boolean; user?: any }>> {
-    const token = localStorage.getItem('hp_auth_token');
+    const token   = localStorage.getItem('hp_auth_token');
     const expires = localStorage.getItem('hp_token_expires');
 
     if (!token || !expires) {
-      return {
-        data: { valid: false },
-        status: 200,
-        message: 'No token',
-        timestamp: Date.now(),
-        requestId: `req_${Date.now()}`,
-      };
+      return { data: { valid: false }, status: 200, message: 'No token', timestamp: Date.now(), requestId: `req_${Date.now()}` };
     }
 
     if (Date.now() > parseInt(expires)) {
       localStorage.removeItem('hp_auth_token');
       localStorage.removeItem('hp_token_expires');
-      return {
-        data: { valid: false },
-        status: 200,
-        message: 'Token expired',
-        timestamp: Date.now(),
-        requestId: `req_${Date.now()}`,
-      };
+      localStorage.removeItem('hp_mock_user');
+      return { data: { valid: false }, status: 200, message: 'Token expired', timestamp: Date.now(), requestId: `req_${Date.now()}` };
+    }
+
+    // ── Restore mock Patient session without hitting backend ────────────────
+    const mockUser = localStorage.getItem('hp_mock_user');
+    if (mockUser) {
+      return { data: { valid: true, user: JSON.parse(mockUser) }, status: 200, message: 'Mock session', timestamp: Date.now(), requestId: `req_${Date.now()}` };
     }
 
     try {
       return await this.request<{ valid: boolean; user?: any }>('GET', '/api/auth/validate');
     } catch {
-      return {
-        data: { valid: false },
-        status: 200,
-        message: 'Token validation failed',
-        timestamp: Date.now(),
-        requestId: `req_${Date.now()}`,
-      };
+      return { data: { valid: false }, status: 200, message: 'Token validation failed', timestamp: Date.now(), requestId: `req_${Date.now()}` };
     }
   }
 
@@ -207,6 +231,19 @@ class ApiService {
     } catch {
       return [];
     }
+  }
+
+  // ========= Patient Registration =========
+
+  async register(data: { name: string; email: string; phone: string; username: string; password: string }): Promise<ApiResponse<{ token: string; user: any; expiresAt: number }>> {
+    const response = await this.request<{ token: string; user: any; expiresAt: number }>(
+      'POST', '/api/auth/register', data
+    );
+    const { token, expiresAt } = response.data;
+    localStorage.setItem('hp_auth_token', token);
+    localStorage.setItem('hp_token_expires', expiresAt.toString());
+    localStorage.removeItem('hp_mock_user');
+    return response;
   }
 
   // ========= Dashboard Stats =========

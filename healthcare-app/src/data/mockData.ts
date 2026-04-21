@@ -85,11 +85,11 @@ export const mockVisits: PatientVisit[] = [
 // Billing
 // ============================================
 export const mockBilling: Billing[] = [
-  { id: 'B001', patientName: 'John Anderson', invoiceDate: '2026-04-01', services: 'Consultation + ECG', amount: 350, discount: 0, tax: 35, total: 385, paymentMethod: 'Insurance', status: 'Paid', createdAt: '2026-04-01T11:00:00' },
-  { id: 'B002', patientName: 'Maria Garcia', invoiceDate: '2026-03-28', services: 'Neurology Consultation + MRI', amount: 1200, discount: 100, tax: 110, total: 1210, paymentMethod: 'Card', status: 'Paid', createdAt: '2026-03-28T15:00:00' },
-  { id: 'B003', patientName: 'Robert Chen', invoiceDate: '2026-04-03', services: 'Orthopedic Consultation + X-Ray', amount: 500, discount: 50, tax: 45, total: 495, paymentMethod: 'Cash', status: 'Pending', createdAt: '2026-04-03T10:00:00' },
-  { id: 'B004', patientName: 'Emily Davis', invoiceDate: '2026-04-05', services: 'Pediatric Consultation', amount: 200, discount: 0, tax: 20, total: 220, paymentMethod: 'UPI', status: 'Paid', createdAt: '2026-04-05T12:00:00' },
-  { id: 'B005', patientName: 'David Kim', invoiceDate: '2026-04-04', services: 'Pre-Surgery Labs + Consultation', amount: 800, discount: 0, tax: 80, total: 880, paymentMethod: 'Insurance', status: 'Overdue', createdAt: '2026-04-04T16:45:00' },
+  { id: 'B001', patientName: 'John Anderson', invoiceDate: '2026-04-01', services: 'Consultation + ECG', amount: 2500, discount: 0, tax: 450, total: 2950, paymentMethod: 'Insurance', status: 'Paid', createdAt: '2026-04-01T11:00:00' },
+  { id: 'B002', patientName: 'Maria Garcia', invoiceDate: '2026-03-28', services: 'Neurology Consultation + MRI', amount: 12000, discount: 1000, tax: 1980, total: 12980, paymentMethod: 'Card', status: 'Paid', createdAt: '2026-03-28T15:00:00' },
+  { id: 'B003', patientName: 'Robert Chen', invoiceDate: '2026-04-03', services: 'Orthopedic Consultation + X-Ray', amount: 4500, discount: 500, tax: 720, total: 4720, paymentMethod: 'Cash', status: 'Pending', createdAt: '2026-04-03T10:00:00' },
+  { id: 'B004', patientName: 'Emily Davis', invoiceDate: '2026-04-05', services: 'Pediatric Consultation', amount: 1500, discount: 0, tax: 270, total: 1770, paymentMethod: 'UPI', status: 'Paid', createdAt: '2026-04-05T12:00:00' },
+  { id: 'B005', patientName: 'David Kim', invoiceDate: '2026-04-04', services: 'Pre-Surgery Labs + Consultation', amount: 8000, discount: 0, tax: 1440, total: 9440, paymentMethod: 'Insurance', status: 'Overdue', createdAt: '2026-04-04T16:45:00' },
 ];
 
 // ============================================
@@ -107,7 +107,7 @@ export const mockPrescriptions: Prescription[] = [
 // ============================================
 export const mockNotifications: Notification[] = [
   { id: 'N001', title: 'New Appointment', message: 'David Kim has booked an emergency appointment for Apr 8', type: 'warning', time: '2 min ago', read: false },
-  { id: 'N002', title: 'Payment Received', message: 'Payment of $385 received from John Anderson', type: 'success', time: '15 min ago', read: false },
+  { id: 'N002', title: 'Payment Received', message: 'Payment of ₹2,950 received from John Anderson', type: 'success', time: '15 min ago', read: false },
   { id: 'N003', title: 'Lab Results Ready', message: 'Blood work results for Maria Garcia are available', type: 'info', time: '1 hour ago', read: false },
   { id: 'N004', title: 'Overdue Payment', message: 'Invoice B005 for David Kim is overdue', type: 'error', time: '3 hours ago', read: true },
   { id: 'N005', title: 'Schedule Update', message: 'Dr. Torres will be on leave until Apr 15', type: 'info', time: '5 hours ago', read: true },
@@ -120,7 +120,7 @@ export const mockNotifications: Notification[] = [
 export const dashboardStats = {
   totalPatients: 1248,
   todayAppointments: 42,
-  monthlyRevenue: 128500,
+  monthlyRevenue: 1285000,
   activeDoctors: 24,
   occupancyRate: 78,
   pendingBills: 15,

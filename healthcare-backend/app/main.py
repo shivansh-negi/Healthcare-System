@@ -99,10 +99,6 @@ for collection_name, tag in collection_configs:
     app.include_router(router)
 
 
-for collection_name, tag in collection_configs:
-    router = create_collection_router(collection_name, tag)
-    app.include_router(router)
-
 
 # ---- Auth Info Routes ----
 @app.get("/auth/login")
