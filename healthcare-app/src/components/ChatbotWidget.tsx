@@ -18,7 +18,7 @@ export interface ChatMessage {
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
-const N8N_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook-test/chat';
+const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/chat';
 const REQUEST_TIMEOUT_MS = 30_000; // 30 s
 
 // ─── Session ID — persisted for the browser tab ────────────────────────────────
@@ -201,7 +201,15 @@ export default function ChatbotWidget() {
         throw new Error(`n8n responded with HTTP ${res.status}`);
       }
 
-      const data = await res.json();
+      // Read body once, then try parsing as JSON or plain text
+      const bodyText = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(bodyText);
+      } catch {
+        // Response is plain text, not JSON
+        data = bodyText;
+      }
       const { text, quickActions } = parseN8nResponse(data);
 
       setN8nOnline(true);
