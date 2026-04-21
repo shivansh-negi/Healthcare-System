@@ -16,6 +16,8 @@ import ChatbotPage from './pages/ChatbotPage';
 import Reports from './pages/Reports';
 import SettingsPage from './pages/Settings';
 import Telemedicine from './pages/Telemedicine';
+import DoctorDashboard from './pages/DoctorDashboard';
+import PatientDashboard from './pages/PatientDashboard';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -42,18 +44,9 @@ function AppLoader() {
             <h2>HealthPulse</h2>
             <p>Initializing secure session...</p>
             <div className="loader-steps">
-              <div className="loader-step active">
-                <span className="step-dot" />
-                Connecting to database
-              </div>
-              <div className="loader-step">
-                <span className="step-dot" />
-                Validating session token
-              </div>
-              <div className="loader-step">
-                <span className="step-dot" />
-                Loading modules
-              </div>
+              <div className="loader-step active"><span className="step-dot" />Connecting to database</div>
+              <div className="loader-step"><span className="step-dot" />Validating session token</div>
+              <div className="loader-step"><span className="step-dot" />Loading modules</div>
             </div>
           </div>
         </div>
@@ -68,6 +61,13 @@ function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <DashboardLayout />;
+}
+
+/** Role-gated route — redirects if user lacks required role */
+function RoleRoute({ roles, children }: { roles: string[]; children: JSX.Element }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function DashboardLayout() {
@@ -95,15 +95,59 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />} />
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+
       <Route path="/dashboard" element={<ProtectedRoute />}>
+        {/* Index — role-aware home (renders DoctorDashboard / PatientDashboard / AdminDashboard) */}
         <Route index element={<DashboardHome />} />
-        <Route path="master-data" element={<MasterData />} />
-        <Route path="transaction-data" element={<TransactionData />} />
+
+        {/* ── Shared pages ── */}
         <Route path="chatbot" element={<ChatbotPage />} />
+        <Route path="telemedicine" element={<Telemedicine />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="telemedicine" element={<Telemedicine />} />
+
+        {/* ── Admin & Staff only ── */}
+        <Route path="master-data" element={
+          <RoleRoute roles={['Admin', 'Staff', 'Doctor']}>
+            <MasterData />
+          </RoleRoute>
+        } />
+        <Route path="transaction-data" element={
+          <RoleRoute roles={['Admin', 'Staff', 'Doctor']}>
+            <TransactionData />
+          </RoleRoute>
+        } />
+
+        {/* ── Doctor sub-pages (tab links from DoctorDashboard, just redirect to index) ── */}
+        <Route path="doctor/patients"       element={<Navigate to="/dashboard" replace />} />
+        <Route path="doctor/appointments"   element={<Navigate to="/dashboard" replace />} />
+        <Route path="doctor/prescriptions"  element={<Navigate to="/dashboard" replace />} />
+
+        {/* ── Patient sub-pages (tab links from PatientDashboard, just redirect to index) ── */}
+        <Route path="patient/book"           element={<Navigate to="/dashboard" replace />} />
+        <Route path="patient/records"        element={<Navigate to="/dashboard" replace />} />
+        <Route path="patient/prescriptions"  element={<Navigate to="/dashboard" replace />} />
+        <Route path="patient/notifications"  element={<Navigate to="/dashboard" replace />} />
       </Route>
+
+      {/* Doctor-specific full pages */}
+      <Route path="/doctor" element={<ProtectedRoute />}>
+        <Route index element={
+          <RoleRoute roles={['Doctor']}>
+            <DoctorDashboard />
+          </RoleRoute>
+        } />
+      </Route>
+
+      {/* Patient-specific full pages */}
+      <Route path="/patient" element={<ProtectedRoute />}>
+        <Route index element={
+          <RoleRoute roles={['Patient']}>
+            <PatientDashboard />
+          </RoleRoute>
+        } />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
