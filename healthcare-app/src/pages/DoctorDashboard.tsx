@@ -5,7 +5,8 @@ import { api } from '../services/api';
 import {
   Users, Calendar, FileText, Clock, CheckCircle, XCircle,
   TrendingUp, Activity, Stethoscope, Pill, Video, Star,
-  ChevronRight, AlertCircle, Heart, Loader2
+  ChevronRight, AlertCircle, Heart, Loader2, X, Thermometer, Plus,
+  Pencil, Trash2
 } from 'lucide-react';
 import AnimatedPage from '../components/AnimatedPage';
 import DoctorPatientConsult from '../components/DoctorPatientConsult';
@@ -34,6 +35,26 @@ const FALLBACK_PRESCRIPTIONS = [
   { id: 'RX003', patient: 'Amit Kumar', medicines: 'Diclofenac 50mg, Rabeprazole 20mg', date: '2026-04-08', status: 'Completed' },
 ];
 
+// Fallback visit records keyed by patient name
+const FALLBACK_VISITS: Record<string, any[]> = {
+  'Rahul Sharma': [
+    { id: 'V001', date: '2026-04-10', diagnosis: 'Hypertension Stage 1', treatment: 'Lifestyle modifications, Amlodipine prescribed', vitals: { bp: '142/92', temp: '98.4°F', pulse: '84 bpm', weight: '78 kg' }, status: 'Completed', notes: 'Patient advised low-sodium diet and regular exercise.' },
+    { id: 'V002', date: '2026-03-15', diagnosis: 'Routine Checkup', treatment: 'Blood work ordered', vitals: { bp: '138/88', temp: '98.6°F', pulse: '80 bpm', weight: '79 kg' }, status: 'Completed', notes: 'Lipid panel slightly elevated. Statin considered.' },
+  ],
+  'Priya Singh': [
+    { id: 'V003', date: '2026-04-09', diagnosis: 'Diabetes Type 2 — Uncontrolled', treatment: 'Insulin Glargine initiated, Metformin dose increased', vitals: { bp: '128/82', temp: '98.2°F', pulse: '76 bpm', weight: '65 kg' }, status: 'Follow-up Required', notes: 'HbA1c: 8.9%. Strict dietary compliance required.' },
+  ],
+  'Amit Kumar': [
+    { id: 'V004', date: '2026-04-08', diagnosis: 'Osteoarthritis — Knee', treatment: 'Diclofenac 50mg, Physiotherapy referral', vitals: { bp: '130/84', temp: '98.6°F', pulse: '72 bpm', weight: '82 kg' }, status: 'Completed', notes: 'X-ray shows Grade 2 OA. Advised weight reduction.' },
+  ],
+  'Sunita Devi': [
+    { id: 'V005', date: '2026-04-07', diagnosis: 'Hypothyroidism', treatment: 'Levothyroxine 50mcg daily', vitals: { bp: '122/78', temp: '97.8°F', pulse: '68 bpm', weight: '70 kg' }, status: 'Completed', notes: 'TSH: 12.4. Repeat after 6 weeks.' },
+  ],
+  'Vikram Patel': [
+    { id: 'V006', date: '2026-04-06', diagnosis: 'Lumbar Disc Herniation', treatment: 'Rest, Analgesics, Physiotherapy', vitals: { bp: '126/80', temp: '98.4°F', pulse: '74 bpm', weight: '85 kg' }, status: 'Follow-up Required', notes: 'MRI shows L4-L5 disc bulge. Conservative management for now.' },
+  ],
+};
+
 type DoctorTab = 'overview' | 'patients' | 'appointments' | 'prescriptions';
 
 export default function DoctorDashboard() {
@@ -47,8 +68,20 @@ export default function DoctorDashboard() {
   const [saving, setSaving] = useState(false);
   const [prescriptionForm, setPrescriptionForm] = useState({ patient: '', medicines: '', dosage: '', duration: '', instructions: '' });
   const [showPrescForm, setShowPrescForm] = useState(false);
+  const [editRxId, setEditRxId] = useState<string | null>(null);
   const [showConsult, setShowConsult] = useState(false);
   const [consultPatient, setConsultPatient] = useState('Rahul Sharma');
+  const [recordsPatient, setRecordsPatient] = useState<any | null>(null);
+  const [patientVisits, setPatientVisits] = useState<any[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [showVisitForm, setShowVisitForm] = useState(false);
+  const [savingVisit, setSavingVisit] = useState(false);
+  const [editVisitId, setEditVisitId] = useState<string | null>(null);
+  const [deletingVisitId, setDeletingVisitId] = useState<string | null>(null);
+  const [visitForm, setVisitForm] = useState({
+    diagnosis: '', treatment: '', bp: '', temp: '', pulse: '', weight: '',
+    status: 'Completed', notes: '', followUpDate: '',
+  });
 
   // Fetch real data from backend
   useEffect(() => {
@@ -111,6 +144,21 @@ export default function DoctorDashboard() {
     }
   };
 
+  const handleUpdatePrescription = (rxId: string) => {
+    const rx = prescriptions.find((r: any) => r.id === rxId);
+    if (!rx) return;
+    setEditRxId(rxId);
+    setPrescriptionForm({
+      patient: rx.patient || '',
+      medicines: rx.medicines || '',
+      dosage: rx.dosage || '',
+      duration: rx.duration || '',
+      instructions: rx.instructions || '',
+    });
+    setShowPrescForm(true);
+    setActiveTab('prescriptions');
+  };
+
   const handleSavePrescription = async () => {
     if (!prescriptionForm.patient || !prescriptionForm.medicines) {
       toast.error('Missing Fields', 'Patient name and medicines are required');
@@ -118,7 +166,7 @@ export default function DoctorDashboard() {
     }
     setSaving(true);
     const rxData = {
-      id: `RX${Date.now()}`,
+      id: editRxId || `RX${Date.now()}`,
       patientName: prescriptionForm.patient,
       doctorName: user?.name || 'Doctor',
       date: new Date().toISOString().split('T')[0],
@@ -130,15 +178,59 @@ export default function DoctorDashboard() {
       createdAt: new Date().toISOString(),
     };
     try {
-      await api.create('prescriptions', rxData as any);
-      toast.success('Prescription Saved', `Prescription for ${prescriptionForm.patient} created`);
+      if (editRxId) {
+        await api.update('prescriptions', editRxId, rxData as any);
+        toast.success('Prescription Updated', `Prescription for ${prescriptionForm.patient} updated`);
+      } else {
+        await api.create('prescriptions', rxData as any);
+        toast.success('Prescription Saved', `Prescription for ${prescriptionForm.patient} created`);
+      }
     } catch {
-      toast.info('Saved Locally', 'Prescription saved (backend sync pending)');
+      toast.info(editRxId ? 'Updated Locally' : 'Saved Locally', 'Prescription saved (backend sync pending)');
     }
-    setPrescriptions(prev => [{ id: rxData.id, patient: rxData.patientName, medicines: rxData.medications, date: rxData.date, status: 'Active' }, ...prev]);
+    if (editRxId) {
+      setPrescriptions(prev => prev.map(rx =>
+        rx.id === editRxId
+          ? { ...rx, patient: rxData.patientName, medicines: rxData.medications, date: rxData.date, dosage: rxData.dosage, duration: rxData.duration, instructions: rxData.instructions }
+          : rx
+      ));
+    } else {
+      setPrescriptions(prev => [{ id: rxData.id, patient: rxData.patientName, medicines: rxData.medications, date: rxData.date, status: 'Active' }, ...prev]);
+    }
     setPrescriptionForm({ patient: '', medicines: '', dosage: '', duration: '', instructions: '' });
+    setEditRxId(null);
     setShowPrescForm(false);
     setSaving(false);
+  };
+
+  const handleViewRecords = async (patient: any) => {
+    setRecordsPatient(patient);
+    setLoadingRecords(true);
+    // Try to fetch from backend first
+    try {
+      const res = await api.getAll<any>('visits', 1, 50);
+      if (res?.data?.data?.length) {
+        const filtered = res.data.data.filter((v: any) => v.patientName === patient.name);
+        if (filtered.length) {
+          setPatientVisits(filtered.map((v: any) => ({
+            id: v.id || v._id,
+            date: v.visitDate || v.date,
+            diagnosis: v.diagnosis,
+            treatment: v.treatment || '',
+            vitals: v.vitals || { bp: '—', temp: '—', pulse: '—', weight: '—' },
+            status: v.status || 'Completed',
+            notes: v.notes || '',
+          })));
+          setLoadingRecords(false);
+          return;
+        }
+      }
+    } catch {
+      // Fall through to fallback
+    }
+    // Use fallback data
+    setPatientVisits(FALLBACK_VISITS[patient.name] || []);
+    setLoadingRecords(false);
   };
 
   const statusColor = (s: string) => {
@@ -146,10 +238,100 @@ export default function DoctorDashboard() {
     if (s === 'Pending') return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' };
     if (s === 'Confirmed' || s === 'Stable' || s === 'Active') return { color: '#10b981', bg: 'rgba(16,185,129,0.1)' };
     if (s === 'Completed') return { color: '#6366f1', bg: 'rgba(99,102,241,0.1)' };
+    if (s === 'Follow-up Required') return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' };
     return { color: '#8897ad', bg: 'rgba(136,151,173,0.1)' };
   };
 
+  const handleSaveVisitRecord = async () => {
+    if (!visitForm.diagnosis.trim()) {
+      toast.error('Missing Field', 'Diagnosis is required');
+      return;
+    }
+    setSavingVisit(true);
+    const visitData = {
+      id: editVisitId || `V${Date.now()}`,
+      patientName: recordsPatient.name,
+      doctorName: user?.name || 'Doctor',
+      visitDate: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split('T')[0],
+      diagnosis: visitForm.diagnosis,
+      treatment: visitForm.treatment,
+      followUpDate: visitForm.followUpDate || '',
+      status: visitForm.status,
+      vitals: {
+        bp: visitForm.bp || '—',
+        temp: visitForm.temp || '—',
+        pulse: visitForm.pulse || '—',
+        weight: visitForm.weight || '—',
+      },
+      notes: visitForm.notes,
+      createdAt: new Date().toISOString(),
+    };
+    try {
+      if (editVisitId) {
+        await api.update('visits', editVisitId, visitData as any);
+        toast.success('Visit Updated', `Visit record updated for ${recordsPatient.name}`);
+      } else {
+        await api.create('visits', visitData as any);
+        toast.success('Visit Recorded', `Visit record created for ${recordsPatient.name}`);
+      }
+    } catch {
+      toast.info(editVisitId ? 'Updated Locally' : 'Saved Locally', 'Visit record saved (backend sync pending)');
+    }
+    if (editVisitId) {
+      setPatientVisits(prev => prev.map(v =>
+        v.id === editVisitId
+          ? { ...v, date: visitData.visitDate, diagnosis: visitData.diagnosis, treatment: visitData.treatment, vitals: visitData.vitals, status: visitData.status, notes: visitData.notes }
+          : v
+      ));
+    } else {
+      setPatientVisits(prev => [{
+        id: visitData.id,
+        date: visitData.visitDate,
+        diagnosis: visitData.diagnosis,
+        treatment: visitData.treatment,
+        vitals: visitData.vitals,
+        status: visitData.status,
+        notes: visitData.notes,
+      }, ...prev]);
+    }
+    // Reset form
+    setVisitForm({ diagnosis: '', treatment: '', bp: '', temp: '', pulse: '', weight: '', status: 'Completed', notes: '', followUpDate: '' });
+    setEditVisitId(null);
+    setShowVisitForm(false);
+    setSavingVisit(false);
+  };
+
+  const handleEditVisit = (visit: any) => {
+    setEditVisitId(visit.id);
+    setVisitForm({
+      diagnosis: visit.diagnosis || '',
+      treatment: visit.treatment || '',
+      bp: visit.vitals?.bp || '',
+      temp: visit.vitals?.temp || '',
+      pulse: visit.vitals?.pulse || '',
+      weight: visit.vitals?.weight || '',
+      status: visit.status || 'Completed',
+      notes: visit.notes || '',
+      followUpDate: visit.followUpDate || '',
+    });
+    setShowVisitForm(true);
+  };
+
+  const handleDeleteVisit = async (visitId: string) => {
+    setDeletingVisitId(visitId);
+    try {
+      await api.delete('visits', visitId);
+      toast.success('Deleted', 'Visit record removed');
+    } catch {
+      toast.info('Deleted Locally', 'Visit removed (backend sync pending)');
+    }
+    setPatientVisits(prev => prev.filter(v => v.id !== visitId));
+    setDeletingVisitId(null);
+  };
+
   return (
+    <>
     <AnimatedPage>
       {showConsult && <DoctorPatientConsult patientName={consultPatient} onClose={() => setShowConsult(false)} />}
 
@@ -316,7 +498,7 @@ export default function DoctorDashboard() {
                           <button className="btn btn-secondary btn-sm" onClick={() => { setActiveTab('prescriptions'); setShowPrescForm(true); setPrescriptionForm(f => ({ ...f, patient: p.name })); }}>
                             <Pill size={13} /> Prescribe
                           </button>
-                          <button className="btn btn-secondary btn-sm"><FileText size={13} /> Records</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleViewRecords(p)}><FileText size={13} /> Records</button>
                         </div>
                       </td>
                     </tr>
@@ -386,8 +568,8 @@ export default function DoctorDashboard() {
           {/* Add prescription form */}
           <div className="glass-card" style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontWeight: 700 }}>✍️ Write New Prescription</h3>
-              <button className={`btn btn-${showPrescForm ? 'secondary' : 'primary'} btn-sm`} onClick={() => setShowPrescForm(f => !f)}>
+              <h3 style={{ margin: 0, fontWeight: 700 }}>{editRxId ? '✏️ Update Prescription' : '✍️ Write New Prescription'}</h3>
+              <button className={`btn btn-${showPrescForm ? 'secondary' : 'primary'} btn-sm`} onClick={() => { setShowPrescForm(f => !f); if (showPrescForm) { setEditRxId(null); setPrescriptionForm({ patient: '', medicines: '', dosage: '', duration: '', instructions: '' }); } }}>
                 {showPrescForm ? 'Cancel' : '+ New Prescription'}
               </button>
             </div>
@@ -417,7 +599,7 @@ export default function DoctorDashboard() {
                 </div>
                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}>
                   <button className="btn btn-primary" onClick={handleSavePrescription} disabled={saving}>
-                    {saving ? <><Loader2 size={16} className="spin" /> Saving...</> : <><Heart size={16} /> Save Prescription</>}
+                    {saving ? <><Loader2 size={16} className="spin" /> Saving...</> : <><Heart size={16} /> {editRxId ? 'Update Prescription' : 'Save Prescription'}</>}
                   </button>
                   <button className="btn btn-secondary" onClick={() => setShowPrescForm(false)}>Cancel</button>
                 </div>
@@ -447,7 +629,7 @@ export default function DoctorDashboard() {
                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Issued: {rx.date} · ID: {rx.id}</p>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-secondary btn-sm"><TrendingUp size={13} /> Update</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => handleUpdatePrescription(rx.id)}><TrendingUp size={13} /> Update</button>
                     </div>
                   </div>
                 );
@@ -457,5 +639,232 @@ export default function DoctorDashboard() {
         </div>
       )}
     </AnimatedPage>
+
+    {/* ── PATIENT RECORDS MODAL ── */}
+    {recordsPatient && (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+        zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }} onClick={() => setRecordsPatient(null)}>
+        <div style={{
+          background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 780,
+          maxHeight: '85vh', overflow: 'auto', boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
+          border: '1px solid var(--border-color)',
+        }} onClick={e => e.stopPropagation()}>
+          {/* Modal header */}
+          <div style={{
+            padding: '20px 28px', borderBottom: '1px solid var(--border-color)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, rgba(8,145,178,0.08) 0%, rgba(99,102,241,0.08) 100%)',
+            borderRadius: '20px 20px 0 0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                {recordsPatient.avatar}
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>{recordsPatient.name}</h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {recordsPatient.age} yrs · {recordsPatient.condition} · ID: {recordsPatient.id}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setRecordsPatient(null)} style={{
+              background: 'var(--bg-input)', border: 'none', borderRadius: 10,
+              width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--text-secondary)', transition: 'all 0.2s',
+            }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Add Visit Record Form */}
+          <div style={{ padding: '16px 28px 0', borderBottom: showVisitForm ? '1px solid var(--border-color)' : 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showVisitForm ? 16 : 0 }}>
+              <button className={`btn btn-${showVisitForm ? 'secondary' : 'primary'} btn-sm`}
+                onClick={() => { setShowVisitForm(f => !f); if (showVisitForm) { setVisitForm({ diagnosis: '', treatment: '', bp: '', temp: '', pulse: '', weight: '', status: 'Completed', notes: '', followUpDate: '' }); setEditVisitId(null); } }}>
+                {showVisitForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Add Visit Record</>}
+              </button>
+            </div>
+            {showVisitForm && (
+              <div style={{ paddingBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Diagnosis *</label>
+                    <input className="search-input" style={{ width: '100%' }} placeholder="e.g. Hypertension Stage 1"
+                      value={visitForm.diagnosis} onChange={e => setVisitForm(f => ({ ...f, diagnosis: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Treatment</label>
+                    <input className="search-input" style={{ width: '100%' }} placeholder="e.g. Amlodipine 5mg prescribed"
+                      value={visitForm.treatment} onChange={e => setVisitForm(f => ({ ...f, treatment: e.target.value }))} />
+                  </div>
+                </div>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Vitals</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                  <input className="search-input" style={{ width: '100%' }} placeholder="BP (e.g. 140/90)"
+                    value={visitForm.bp} onChange={e => setVisitForm(f => ({ ...f, bp: e.target.value }))} />
+                  <input className="search-input" style={{ width: '100%' }} placeholder="Temp (e.g. 98.6°F)"
+                    value={visitForm.temp} onChange={e => setVisitForm(f => ({ ...f, temp: e.target.value }))} />
+                  <input className="search-input" style={{ width: '100%' }} placeholder="Pulse (e.g. 80 bpm)"
+                    value={visitForm.pulse} onChange={e => setVisitForm(f => ({ ...f, pulse: e.target.value }))} />
+                  <input className="search-input" style={{ width: '100%' }} placeholder="Weight (e.g. 75 kg)"
+                    value={visitForm.weight} onChange={e => setVisitForm(f => ({ ...f, weight: e.target.value }))} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Status</label>
+                    <select className="search-input" style={{ width: '100%' }}
+                      value={visitForm.status} onChange={e => setVisitForm(f => ({ ...f, status: e.target.value }))}>
+                      <option value="Completed">Completed</option>
+                      <option value="Follow-up Required">Follow-up Required</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Follow-up Date</label>
+                    <input type="date" className="search-input" style={{ width: '100%' }}
+                      value={visitForm.followUpDate} onChange={e => setVisitForm(f => ({ ...f, followUpDate: e.target.value }))} />
+                  </div>
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Notes</label>
+                  <textarea className="search-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} placeholder="Additional notes or observations..."
+                    value={visitForm.notes} onChange={e => setVisitForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-primary btn-sm" onClick={handleSaveVisitRecord} disabled={savingVisit}>
+                    {savingVisit ? <><Loader2 size={14} className="spin" /> Saving...</> : <><CheckCircle size={14} /> {editVisitId ? 'Update Record' : 'Save Visit Record'}</>}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setShowVisitForm(false); setEditVisitId(null); setVisitForm({ diagnosis: '', treatment: '', bp: '', temp: '', pulse: '', weight: '', status: 'Completed', notes: '', followUpDate: '' }); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '24px 28px' }}>
+            {loadingRecords ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <Loader2 size={32} className="spin" color="var(--accent-primary)" />
+                <p style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: '0.88rem' }}>Loading records...</p>
+              </div>
+            ) : patientVisits.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ fontSize: '3rem', marginBottom: 12 }}>📭</div>
+                <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>No visit records found</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Click "Add Visit Record" above to create the first record for this patient.</p>
+              </div>
+            ) : (
+              <>
+                {/* Latest vitals (from most recent visit) */}
+                <h4 style={{ margin: '0 0 14px', fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                  📊 Latest Vitals
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+                  {[
+                    { icon: Activity, label: 'Blood Pressure', value: patientVisits[0]?.vitals?.bp, color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+                    { icon: Thermometer, label: 'Temperature', value: patientVisits[0]?.vitals?.temp, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+                    { icon: Heart, label: 'Pulse Rate', value: patientVisits[0]?.vitals?.pulse, color: '#6366f1', bg: 'rgba(99,102,241,0.1)' },
+                    { icon: Star, label: 'Weight', value: patientVisits[0]?.vitals?.weight, color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+                  ].map((v, i) => (
+                    <div key={i} style={{
+                      padding: '14px 12px', background: v.bg, borderRadius: 14, textAlign: 'center',
+                    }}>
+                      <v.icon size={20} color={v.color} style={{ marginBottom: 6 }} />
+                      <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>{v.value || '—'}</p>
+                      <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>{v.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Visit history */}
+                <h4 style={{ margin: '0 0 14px', fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                  🏥 Visit History ({patientVisits.length} records)
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 28 }}>
+                  {patientVisits.map((visit: any, idx: number) => {
+                    const vsc = statusColor(visit.status);
+                    return (
+                      <div key={visit.id || idx} style={{
+                        padding: '18px 20px', borderRadius: 14,
+                        border: '1px solid var(--border-color)', background: 'var(--bg-input)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                          <div>
+                            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                              {visit.diagnosis}
+                            </p>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              <Clock size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                              {visit.date} · Visit ID: {visit.id}
+                            </p>
+                          </div>
+                          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600, background: vsc.bg, color: vsc.color, whiteSpace: 'nowrap' }}>
+                            {visit.status}
+                          </span>
+                        </div>
+                        {visit.treatment && (
+                          <div style={{ padding: '10px 14px', background: 'rgba(8,145,178,0.06)', borderRadius: 10, marginBottom: 8 }}>
+                            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                              <Stethoscope size={13} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                              <strong>Treatment:</strong> {visit.treatment}
+                            </p>
+                          </div>
+                        )}
+                        {visit.notes && (
+                          <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            📝 {visit.notes}
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: 10, marginTop: 10 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleEditVisit(visit)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Pencil size={13} /> Modify
+                          </button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleDeleteVisit(visit.id)}
+                            disabled={deletingVisitId === visit.id}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, color: deletingVisitId === visit.id ? 'var(--text-muted)' : '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+                            {deletingVisitId === visit.id ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />} Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Related prescriptions */}
+                {prescriptions.filter((rx: any) => rx.patient === recordsPatient.name).length > 0 && (
+                  <>
+                    <h4 style={{ margin: '0 0 14px', fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                      💊 Prescriptions
+                    </h4>
+                    {prescriptions.filter((rx: any) => rx.patient === recordsPatient.name).map((rx: any) => {
+                      const rxsc = statusColor(rx.status);
+                      return (
+                        <div key={rx.id} style={{
+                          padding: '14px 18px', borderRadius: 12,
+                          border: '1px solid var(--border-color)', marginBottom: 10,
+                          display: 'flex', alignItems: 'center', gap: 12,
+                        }}>
+                          <Pill size={18} color="#10b981" />
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>{rx.medicines}</p>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Issued: {rx.date} · {rx.id}</p>
+                          </div>
+                          <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: '0.68rem', fontWeight: 600, background: rxsc.bg, color: rxsc.color }}>{rx.status}</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
